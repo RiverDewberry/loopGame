@@ -93,6 +93,7 @@ Level MakeLevel(
         .height = height,
         .tileGrid = tileGrid,
         .enemyNum = enemyNum,
+        .maxEnemies = enemyNum,
         .enemies = enemies,
         .player = (MacroBot) {
             .rotation = playerStartRotation,
@@ -227,6 +228,10 @@ void DrawBot(
             animationTransparnecy = 1.0f - bot.animationProgress;
             animationTransparnecy *= 2.0f;
             if(animationTransparnecy > 1.0f)animationTransparnecy = 1.0f;
+            break;
+
+        case MACRO_BOT_ANIMATION_GONE:
+            animationTransparnecy = 0.0f;
             break;
     }
 
@@ -402,14 +407,26 @@ void RunMacroBot(MacroBot *bot, float animationSpeed)
                 break;
 
             case MACRO_BOT_ANIMATION_DEAD:
-                bot->posX = bot->spawnX;
-                bot->posY = bot->spawnY;
-                bot->macroPos = 0;
-                bot->rotation = bot->spawnRotation;
+                ResetMacroBot(bot);
+                bot->curAnimation = MACRO_BOT_ANIMATION_GONE;
+                break;
+
+            case MACRO_BOT_ANIMATION_GONE:
                 break;
         }
-        bot->curAnimation = MACRO_BOT_ANIMATION_NONE;
+        if(bot->curAnimation != MACRO_BOT_ANIMATION_GONE)
+            bot->curAnimation = MACRO_BOT_ANIMATION_NONE;
     }
+}
+
+void ResetMacroBot(MacroBot *bot)
+{
+    bot->posX = bot->spawnX;
+    bot->posY = bot->spawnY;
+    bot->macroPos = 0;
+    bot->rotation = bot->spawnRotation;
+    bot->curAnimation = MACRO_BOT_ANIMATION_NONE;
+    bot->animationProgress = 0.0f;
 }
 
 // NOTE: updates the macro counter for the bot
@@ -502,16 +519,32 @@ MacroBotAnimation GetNextAnimation(MacroBot *bot, Level lvl)
 
 void UpdateEnemyBotAnimation(Level *lvl)
 {
+    char resetEnemies = 1;
+
+    for(int i = 0; i < lvl->enemyNum; i++)
+        resetEnemies &= (
+            lvl->enemies[i].curAnimation == MACRO_BOT_ANIMATION_GONE
+        );
+
+    if(resetEnemies)
+    {
+        for(int i = 0; i < lvl->enemyNum; i++)
+            lvl->enemies[i].curAnimation = MACRO_BOT_ANIMATION_NONE;
+    }
+
     for(int i = 0; i < lvl->enemyNum; i++)
     {
         MacroBot *bot = &(lvl->enemies[i]);
+
+        if(bot->curAnimation == MACRO_BOT_ANIMATION_GONE)continue;
 
         if(
             (bot->posX == bot->goalX) &&
             (bot->posY == bot->goalY)
         )
+        {
             bot->curAnimation = MACRO_BOT_ANIMATION_DEAD;
-        else if(
+        } else if(
             lvl->tileGrid[
                 bot->posX + bot->posY * lvl->width
             ].type == LEVEL_TILE_HAZARD
@@ -522,6 +555,7 @@ void UpdateEnemyBotAnimation(Level *lvl)
 
     for(int i = 0; i < lvl->enemyNum; i++)
     {
+        if(lvl->enemies[i].curAnimation == MACRO_BOT_ANIMATION_GONE)continue;
         if(
             (lvl->enemies[i].posX == lvl->player.posX) &&
             (lvl->enemies[i].posY == lvl->player.posY)
@@ -535,6 +569,9 @@ void UpdateEnemyBotAnimation(Level *lvl)
 
 void UpdatePlayerBotAnimation(Level *lvl)
 {
+    if(lvl->player.curAnimation == MACRO_BOT_ANIMATION_GONE)
+        lvl->player.curAnimation = MACRO_BOT_ANIMATION_NONE;
+
     if(lvl->player.curAnimation != MACRO_BOT_ANIMATION_NONE)return;
     MacroBot *bot = &(lvl->player);
 
@@ -548,6 +585,7 @@ void UpdatePlayerBotAnimation(Level *lvl)
 
     for(int i = 0; i < lvl->enemyNum; i++)
     {
+        if(lvl->enemies[i].curAnimation == MACRO_BOT_ANIMATION_GONE)continue;
         if(
             (lvl->enemies[i].posX == lvl->player.posX) &&
             (lvl->enemies[i].posY == lvl->player.posY)

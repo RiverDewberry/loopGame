@@ -62,7 +62,10 @@ typedef enum MacroBotAnimation {
     MACRO_BOT_ANIMATION_TURN_AROUND = 8,
 
     //if the bot is dead
-    MACRO_BOT_ANIMATION_DEAD = 9
+    MACRO_BOT_ANIMATION_DEAD = 9,
+
+    //if the bot is dead and waiting to be respawned
+    MACRO_BOT_ANIMATION_GONE = 10
 } MacroBotAnimation;
 
 typedef struct MacroBot {
@@ -105,6 +108,10 @@ typedef struct MacroBot {
 
 void RunMacroBot(MacroBot *bot, float animationSpeed);
 
+
+//resets a macro bot
+void ResetMacroBot(MacroBot *bot);
+
 typedef struct Level {
     //the width of the level
     int width;
@@ -114,6 +121,9 @@ typedef struct Level {
 
     //the grid of tiles for the level
     LevelTile *tileGrid;
+
+    //the max number of enemies
+    int maxEnemies;
 
     //the number of enemy bots
     int enemyNum;
