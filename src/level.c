@@ -20,25 +20,34 @@ void UnloadLevelTextures()
     UnloadTexture(levelTexture);
 }
 
-Level MakeLevel(
-    int width,
-    int height,
-    LevelTileType *tileTypeGrid,
-    int enemyNum,
-    int *enemySpawnsX,
-    int *enemySpawnsY,
-    int *enemyGoalsX,
-    int *enemyGoalsY,
-    int *enemyRotations,
-    char **enemyMacros,
-    int playerSpawnX,
-    int playerSpawnY,
-    int playerGoalX,
-    int playerGoalY,
-    char playerStartRotation,
-    char maxMacroSize
-)
+Level MakeLevel(char *fileName)
 {
+    FILE *fptr = fopen(fileName, "rb");
+
+    int width, height, enemyNum;
+
+    fread(&width, 4, 1, fptr);
+    fread(&height, 4, 1, fptr);
+
+    char tileTypeGrid[width * height];
+
+    fread(tileTypeGrid, 1, width * height, fptr);
+    fread(&enemyNum, 4, 1, fptr);
+
+    int enemyRotations[enemyNum];
+    int enemySpawnsX[enemyNum];
+    int enemySpawnsY[enemyNum];
+    int enemyGoalsX[enemyNum];
+    int enemyGoalsY[enemyNum];
+
+    fread(enemyGoalsX, 4, enemyNum, fptr);
+    fread(enemyGoalsY, 4, enemyNum, fptr);
+    fread(enemySpawnsX, 4, enemyNum, fptr);
+    fread(enemySpawnsY, 4, enemyNum, fptr);
+    fread(enemyRotations, 4, enemyNum, fptr);
+
+    fclose(fptr);
+
     LevelTile *tileGrid = malloc(sizeof(LevelTile) * width * height);
 
     for(int i = 0, index = 0; i < height; i++)
@@ -83,32 +92,34 @@ Level MakeLevel(
             .goalY = enemyGoalsY[i],
             .curAnimation = MACRO_BOT_ANIMATION_NONE,
             .animationProgress = 0.0f,
-            .macro = enemyMacros[i],
+            .macro = NULL,
             .macroPos = 0
         };
     }
+
+    enemies[0].macro = (char*) malloc(sizeof(char) * 15);
 
     return (Level) {
         .width = width,
         .height = height,
         .tileGrid = tileGrid,
-        .enemyNum = enemyNum,
-        .maxEnemies = enemyNum,
+        .enemyNum = 0,
+        .maxEnemies = enemyNum - 1,
         .enemies = enemies,
         .player = (MacroBot) {
-            .rotation = playerStartRotation,
-            .posX = playerSpawnX,
-            .posY = playerSpawnY,
-            .goalX = playerGoalX,
-            .goalY = playerGoalY,
-            .spawnX = playerSpawnX,
-            .spawnY = playerSpawnY,
-            .macro = (char*) malloc(sizeof(char) * maxMacroSize),
+            .rotation = enemyRotations[0],
+            .posX = enemySpawnsX[0],
+            .posY = enemySpawnsY[0],
+            .goalX = enemyGoalsX[0],
+            .goalY = enemyGoalsY[0],
+            .spawnX = enemySpawnsX[0],
+            .spawnY = enemySpawnsY[0],
+            .macro = enemies[0].macro,
             .curAnimation = MACRO_BOT_ANIMATION_NONE,
             .animationProgress = 0.0f,
-            .spawnRotation = playerStartRotation
+            .spawnRotation = enemyRotations[0]
         },
-        .maxMacroSize = maxMacroSize
+        .maxMacroSize = 15
     };
 
 }
@@ -122,6 +133,10 @@ void RemoveLevel(Level *lvl)
     }
     free(lvl->tileGrid);
     lvl->tileGrid = NULL;
+    for(int i = 0; i < (lvl->maxEnemies + 1); i++)
+    {
+        if(lvl->enemies[i].macro != NULL)free(lvl->enemies[i].macro);
+    }
     if(lvl->enemies == NULL)
     {
         printf("attempted double free of level\n");
@@ -129,13 +144,6 @@ void RemoveLevel(Level *lvl)
     }
     free(lvl->enemies);
     lvl->enemies = NULL;
-    if(lvl->player.macro == NULL)
-    {
-        printf("attempted double free of level\n");
-        return;
-    }
-    free(lvl->player.macro);
-    lvl->player.macro = NULL;
 }
 
 void DrawBot(
@@ -569,9 +577,6 @@ void UpdateEnemyBotAnimation(Level *lvl)
 
 void UpdatePlayerBotAnimation(Level *lvl)
 {
-    if(lvl->player.curAnimation == MACRO_BOT_ANIMATION_GONE)
-        lvl->player.curAnimation = MACRO_BOT_ANIMATION_NONE;
-
     if(lvl->player.curAnimation != MACRO_BOT_ANIMATION_NONE)return;
     MacroBot *bot = &(lvl->player);
 

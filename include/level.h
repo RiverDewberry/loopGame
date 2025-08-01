@@ -139,25 +139,7 @@ typedef struct Level {
 } Level;
 
 //makes a Level struct, does alloc some mem, and thus needs to be free'd
-Level MakeLevel(
-    int width,
-    int height,
-    LevelTileType *tileTypeGrid,
-    int enemyNum,
-    int *enemySpawnsX,
-    int *enemySpawnsY,
-    int *enemyGoalsX,
-    int *enemyGoalsY,
-    int *enemyRotations,
-    char **enemyMacros,
-    int playerSpawnX,
-    int playerSpawnY,
-    int playerGoalX,
-    int playerGoalY,
-    char playerStartRotation,
-    char maxMacroSize
-
-);
+Level MakeLevel(char *fileName);
 
 //frees a level
 void RemoveLevel(Level *lvl);

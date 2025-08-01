@@ -1,47 +1,19 @@
 #include <raylib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "../include/rayui.h"
 #include "../include/level.h"
 
 int main(int argc, char **argv)
 {
-    InitWindow(500, 500, "MACRO - by River Dewberry");
+    InitWindow(500, 500, "The Perfect Run");
 
     ChangeDirectory(GetDirectoryPath(*argv));
     printf("%s\n", GetDirectoryPath(*argv));
     LoadLevelTextures();
 
-    Level lvl1 = MakeLevel(
-        9, 4,
-        (LevelTileType[]) {
-            2, 2, 2, 2, 2, 0, 0, 0, 0,
-            1, 3, 2, 2, 2, 3, 1, 1, 1,
-            1, 0, 1, 0, 1, 0, 1, 0, 1,
-            1, 1, 1, 3, 1, 1, 1, 3, 1,
-            0, 0, 2, 2, 2, 2, 2, 2, 0
-        },
-        1,
-        (int[]) {
-            0
-        },
-        (int[]) {
-            0
-        },
-        (int[]) {
-            4
-        },
-        (int[]) {
-            0
-        },
-        (int[]) {
-            1
-        },
-        (char*[]) {
-            "wwDr"
-        },
-        0, 1, 8, 3, 2, 15
-    );
+    Level lvl1 = MakeLevel("./levels/lvl2.bin");
 
     Level curLvl = lvl1;
 
@@ -92,11 +64,11 @@ int main(int argc, char **argv)
 
     Element leftTopBtnBox = MakeTextBox(
         (Color) {0x1e, 0x1e, 0x1e, 0x00},
-        (Vector2) {15.0f, 0.0f},
+        (Vector2) {0.0f, 0.0f},
         (Vector2) {50.0f, 50.0f},
         &uiScale,
         GRAY,
-        (Vector2) {0.0f, 0.0f},
+        (Vector2) {20.0f, 0.0f},
         "<",
         50,
         &uiScale
@@ -104,12 +76,12 @@ int main(int argc, char **argv)
 
     Element rightTopBtnBox = MakeTextBox(
         (Color) {0x1e, 0x1e, 0x1e, 0x00},
-        (Vector2) {((float) GetScreenWidth()) - 35.0f, 0.0f},
+        (Vector2) {((float) GetScreenWidth()) - 50.0f, 0.0f},
         (Vector2) {50.0f, 50.0f},
         &uiScale,
         GRAY,
-        (Vector2) {0.0f, 0.0f},
-        ">\n?",
+        (Vector2) {20.0f, 0.0f},
+        ">",
         50,
         &uiScale
     );
@@ -138,14 +110,38 @@ int main(int argc, char **argv)
         &uiScale
     );
 
+    Element ffBtnBox = MakeTextBox(
+        (Color) {0x1e, 0x1e, 0x1e, 0x00},
+        (Vector2) {260.0f, bottomBar.pos.y},
+        (Vector2) {165.0f, 100.0f},
+        &uiScale,
+        WHITE,
+        (Vector2) {20.0f, 20.0f},
+        "Fast foward",
+        20,
+        &uiScale
+    );
+
+    Button ffButton = MakeElemButton(
+        NULL, &ffBtnBox, BUTTON_INPUT_DOWN, BUTTON_OUTPUT_SELECT
+    );
+
     Button allowInputButton = MakeElemButton(
-        NULL, &allowInputBtnBox, BUTTON_INPUT_FOCUS, BUTTON_OUTPUT_SELECT
+        NULL, &allowInputBtnBox, BUTTON_INPUT_ON, BUTTON_OUTPUT_SELECT
     );
 
     Button editButton = MakeElemButton(
         NULL, &editBtnBox, BUTTON_INPUT_ON, BUTTON_OUTPUT_TOGGLE
     );
     editButton.output = 1;
+
+    Button rtButton = MakeElemButton(
+        NULL, &rightTopBtnBox, BUTTON_INPUT_ON, BUTTON_OUTPUT_FRAME
+    );
+
+    Button ltButton = MakeElemButton(
+        NULL, &leftTopBtnBox, BUTTON_INPUT_STAY, BUTTON_OUTPUT_FRAME
+    );
 
     TextInput macroInput = MakeTextInput(
         curLvl.player.macro,
@@ -159,7 +155,7 @@ int main(int argc, char **argv)
         }
     );
 
-    float speed = 0.075f;
+    float speed;
 
     SetTargetFPS(30);
 
@@ -184,10 +180,12 @@ int main(int argc, char **argv)
         bottomBar.pos.y = (((float)GetScreenHeight())/ uiScale) - 50.0f;
         editBtnBox.pos.y = bottomBar.pos.y;
         allowInputBtnBox.pos.y = bottomBar.pos.y;
+        ffBtnBox.pos.y = bottomBar.pos.y;
 
         char prevEdit = editButton.output;
         UpdateButton(&editButton);
         if(editButton.output)UpdateButton(&allowInputButton);
+        else allowInputButton.output = 0;
 
         if(strlen(curLvl.player.macro) != 0) {
             editBtnBox.data.textbox->color.a =
@@ -219,8 +217,31 @@ int main(int argc, char **argv)
             }
         }
 
+        if(
+            allowInputButton.output && (
+                (allowInputBtnBox.data.textbox->textColor.r == 255) &&
+                (allowInputBtnBox.data.textbox->textColor.g == 255) &&
+                (allowInputBtnBox.data.textbox->textColor.b == 255)
+            )
+        )
+            allowInputBtnBox.data.textbox->textColor = PINK;
+
         editBtnBox.data.textbox->text = editButton.output ?
             "Run Loop" : "End Loop";
+
+        if(!editButton.output)
+        {
+            macroInput.focused = 0;
+            UpdateButton(&ffButton);
+            ffBtnBox.data.textbox->color.a =
+                ffButton.mouseOn ? 0xff : 0x00;
+            ffBtnBox.data.textbox->textColor =
+                ffButton.mouseOn ? RED : WHITE;
+        } else ffBtnBox.data.textbox->textColor = GRAY;
+
+        speed = ffButton.output ? (
+            (curLvl.enemyNum == 0) ? 0.25 : 0.5
+        ) : 0.075;
 
         DrawLevel(curLvl, worldCam, frameCtr);
 
@@ -234,20 +255,50 @@ int main(int argc, char **argv)
                     ResetMacroBot(curLvl.enemies + i);
             }
 
-                macroInput.focused = 1;
-
+            rightTopBtnBox.data.textbox->textColor = GRAY;
+            rightTopBtnBox.data.textbox->color.a = 0x00;
             UpdateTextInput(&macroInput);
         } else if(
             (curLvl.player.posX == curLvl.player.goalX) &&
             (curLvl.player.posY == curLvl.player.goalY)
         )
         {
+            UpdateButton(&rtButton);
+            rightTopBtnBox.data.textbox->textColor =
+                ((frameCtr < 10) || rtButton.mouseOn) ? RED : WHITE;
+            rightTopBtnBox.data.textbox->color.a = 
+                ((frameCtr < 10) || rtButton.mouseOn) ? 0xff : 0x00;
+
+            if(rtButton.output)
+            {
+                if(curLvl.enemyNum < curLvl.maxEnemies)
+                {
+                    ResetMacroBot(&(curLvl.player));
+                    curLvl.enemyNum++;
+                    curLvl.player = curLvl.enemies[curLvl.enemyNum];
+                    if(curLvl.enemies[curLvl.enemyNum].macro == NULL)
+                        curLvl.enemies[curLvl.enemyNum].macro = (char*)
+                            malloc(sizeof(int) * curLvl.maxMacroSize);
+                    curLvl.player = curLvl.enemies[curLvl.enemyNum];
+                    macroInput.output = curLvl.player.macro;
+                    *(macroInput.output) = 0;
+                    macroInput.curLen = 0;
+                }
+            }
 
         } else if(curLvl.enemyNum == 0)
         {
+            playerDead = curLvl.player.curAnimation ==
+                MACRO_BOT_ANIMATION_DEAD;
             RunMacroBot(&(curLvl.player), speed);
             if(curLvl.player.curAnimation == MACRO_BOT_ANIMATION_NONE)
-                UpdatePlayerBotAnimation(&curLvl);
+            {
+                if(playerDead)
+                {
+                    editButton.output = 1;
+                    ResetMacroBot(&(curLvl.player));
+                } else UpdatePlayerBotAnimation(&curLvl);
+            }
         } else {
             if(playerTurn)
             {
@@ -344,7 +395,7 @@ int main(int argc, char **argv)
 
         if((macroLen == 0) && macroInput.focused)
             DrawText(
-                "Start typing",
+                "No need to click on this, just start typing",
                 drawStart,
                 30 * uiScale,
                 macroFontSize,
@@ -377,7 +428,7 @@ int main(int argc, char **argv)
 
         char topStr[21];
 
-        sprintf(topStr, "Macro iteration %d", 1);
+        sprintf(topStr, "Iteration %d", curLvl.enemyNum + 1);
 
         DrawText(
             topStr,
@@ -392,6 +443,7 @@ int main(int argc, char **argv)
         DrawElement(bottomBar);
         DrawElement(allowInputBtnBox);
         DrawElement(editBtnBox);
+        DrawElement(ffBtnBox);
 
         EndDrawing();
         frameCtr++;
