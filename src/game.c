@@ -7,20 +7,44 @@
 
 int main(int argc, char **argv)
 {
-    InitWindow(500, 500, "The Perfect Run");
+    InitWindow(500, 500, "MACRO - by River Dewberry");
+    InitAudioDevice();
 
     ChangeDirectory(GetDirectoryPath(*argv));
     printf("%s\n", GetDirectoryPath(*argv));
     LoadLevelTextures();
 
-    Level lvl1 = MakeLevel("./levels/lvl2.bin");
+    ChangeDirectory("audio");
+    Music music = LoadMusicStream("music.mp3");
+    PlayMusicStream(music);
+    ChangeDirectory("..");
 
-    Level curLvl = lvl1;
+    int numLevels = 5;
+    ChangeDirectory("levels");
+    Level levels[] = {
+        MakeLevel("lvl1.bin"),
+        MakeLevel("lvl2.bin"),
+        MakeLevel("lvl3.bin"),
+        MakeLevel("lvl4.bin"),
+        MakeLevel("lvl5.bin"),
+    };
+    ChangeDirectory("..");
+
+    char *levelNames[] = {
+        "Tutorial",
+        "Warming up",
+        "Compact",
+        "Insanity",
+        "Open paths"
+    };
+
+    ResetLevel(levels);
+    Level curLvl = levels[0];
 
     Camera2D worldCam = (Camera2D) {
         .target = (Vector2) {
-            8.0f * lvl1.width,
-            8.0f * lvl1.height
+            8.0f * curLvl.width,
+            8.0f * curLvl.height
         },
         .zoom = 3.0f,
         .rotation = 0.0f,
@@ -38,8 +62,8 @@ int main(int argc, char **argv)
         (union DraggerBounds) {.rec = (Rectangle[]) {
             0.0f,
             0.0f,
-            (float)(lvl1.width * 16),
-            (float)(lvl1.height * 16)
+            (float)(curLvl.width * 16),
+            (float)(curLvl.height * 16)
         }},
         DRAGGER_BOUND_BOX,
         &camDragScale,
@@ -68,7 +92,7 @@ int main(int argc, char **argv)
         (Vector2) {50.0f, 50.0f},
         &uiScale,
         GRAY,
-        (Vector2) {20.0f, 0.0f},
+        (Vector2) {15.0f, 0.0f},
         "<",
         50,
         &uiScale
@@ -122,6 +146,35 @@ int main(int argc, char **argv)
         &uiScale
     );
 
+    char endText[150];
+
+    Element endBox = MakeTextBox(
+        (Color) {0x1e, 0x1e, 0x1e, 0xe0},
+        (Vector2) {10.0f, 60.0f},
+        (Vector2) {480.0f, 150.0f},
+        &uiScale,
+        WHITE,
+        (Vector2) {20.0f, 20.0f},
+        endText,
+        20,
+        &uiScale
+    );
+
+    Element exitBtnBox = MakeTextBox(
+        (Color) {0x1e, 0x1e, 0x1e, 0x00},
+        (Vector2) {425.0f, bottomBar.pos.y},
+        (Vector2) {75.0f, 100.0f},
+        &uiScale,
+        WHITE,
+        (Vector2) {20.0f, 20.0f},
+        "Exit",
+        20,
+        &uiScale
+    );
+    Button exitButton = MakeElemButton(
+        NULL, &exitBtnBox, BUTTON_INPUT_DOWN, BUTTON_OUTPUT_FRAME
+    );
+
     Button ffButton = MakeElemButton(
         NULL, &ffBtnBox, BUTTON_INPUT_DOWN, BUTTON_OUTPUT_SELECT
     );
@@ -164,23 +217,135 @@ int main(int argc, char **argv)
     char playerDead = 0;
     char playerTurn = 0;
 
-    strcpy(curLvl.player.macro, "");
+    char inLevel = 1;
+    int lvlPlaying = 0;
+
+    float levelSelectScroll = 0.0f;
 
     while (!WindowShouldClose())
     {
+        UpdateMusicStream(music);
         ClearBackground(BLACK);
 
         uiScale = ((float) GetScreenWidth()) / 500.0f;
+
+        if(!inLevel)
+        {
+            CenterCamera(&worldCam);
+            levelSelectScroll -= GetMouseWheelMove() * 25.0f * uiScale;
+
+            int maxY = (numLevels >> 2) + ((numLevels & 3) != 0) - 1;
+
+            if(
+                (levelSelectScroll + (180.0f * uiScale)) > GetScreenHeight())
+                levelSelectScroll = GetScreenHeight() - (180.0f * uiScale);
+
+
+            if(
+                (levelSelectScroll + (
+                    120.0f * ((float)maxY)
+                ) * uiScale) < 0.0f
+            )
+                levelSelectScroll = -120.0f * ((float)maxY) * uiScale;
+
+            for(int i = 0; i < numLevels; i++)
+            {
+                int x = i & 3;
+                int y = i >> 2;
+
+                char mouseOn = CheckCollisionPointRec(
+                    GetMousePosition(),
+                    (Rectangle) {
+                        (20 + (x * 120)) * uiScale,
+                        (60 + (y * 120)) * uiScale + levelSelectScroll,
+                        100 * uiScale,
+                        100 * uiScale
+                    }
+                );
+
+                DrawRectangle(
+                    (20 + (x * 120)) * uiScale,
+                    (60 + (y * 120)) * uiScale + levelSelectScroll,
+                    100 * uiScale,
+                    100 * uiScale,
+                    (Color) {0x1e, 0x1e, 0x1e, mouseOn ? 0xFF : 0xe0}
+                );
+
+                char numBuf[8];
+                sprintf(numBuf, "%d", i);
+
+                DrawText(
+                    numBuf,
+                    (30 + (x * 120)) * uiScale,
+                    (70 + (y * 120)) * uiScale + levelSelectScroll,
+                    20 * uiScale,
+                    mouseOn ? RED : WHITE
+                );
+
+                DrawText(
+                    levelNames[i],
+                    (30 + (x * 120)) * uiScale,
+                    (140 + (y * 120)) * uiScale + levelSelectScroll,
+                    10 * uiScale,
+                    mouseOn ? WHITE : GRAY
+                );
+
+                if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) && mouseOn)
+                {
+                    ResetLevel(levels + i);
+                    curLvl = levels[i];
+                    lvlPlaying = i;
+                    macroInput.output = curLvl.player.macro;
+                    macroInput.curLen = 0;
+                    editButton.output = 1;
+                    allowInputButton.output = 0;
+                    inLevel = 1;
+                    worldCamDrag.clicked = 0;
+                    UpdateDrag(&worldCamDrag);
+                    worldCamDrag.bound.rec[0] = (Rectangle) {
+                        0.0f,
+                        0.0f,
+                        (float)(curLvl.width * 16),
+                        (float)(curLvl.height * 16)
+                    };
+                    worldCam.target = (Vector2) {
+                        8.0f * curLvl.width,
+                        8.0f * curLvl.height
+                    };
+                    worldCam.zoom = 3.0f;
+                }
+            }
+
+            DrawRectangle(0, 0, GetScreenWidth(), 60 * uiScale, BLACK);
+
+            DrawText(
+                "MACRO - level select",
+                20 * uiScale,
+                10 * uiScale,
+                40 * uiScale,
+                WHITE
+            );
+
+            EndDrawing();
+
+            continue;
+        }
 
         Zoom(&(worldCam.zoom), 1.0f, 64.0f, 0.125f);
         CenterCamera(&worldCam);
         worldCamDrag.clicked = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
         UpdateDrag(&worldCamDrag);
 
+        UpdateButton(&exitButton);
+        exitBtnBox.data.textbox->color.a = exitButton.mouseOn ? 0xff : 0x00;
+        exitBtnBox.data.textbox->textColor = exitButton.mouseOn ? RED : WHITE;
+        if(exitButton.output)inLevel = 0;
+
         bottomBar.pos.y = (((float)GetScreenHeight())/ uiScale) - 50.0f;
         editBtnBox.pos.y = bottomBar.pos.y;
         allowInputBtnBox.pos.y = bottomBar.pos.y;
         ffBtnBox.pos.y = bottomBar.pos.y;
+        exitBtnBox.pos.y = bottomBar.pos.y;
 
         char prevEdit = editButton.output;
         UpdateButton(&editButton);
@@ -193,6 +358,8 @@ int main(int argc, char **argv)
             editBtnBox.data.textbox->textColor =
                 editButton.mouseOn ? RED : WHITE;
         } else if (editButton.mouseOn){
+            editBtnBox.data.textbox->color.a = 0x00;
+            editBtnBox.data.textbox->textColor = WHITE;
             char blink = (frameCtr < 10);
             allowInputBtnBox.data.textbox->color.a = blink ? 0xff : 0x00;
             allowInputBtnBox.data.textbox->textColor = blink ? RED : WHITE;
@@ -229,10 +396,10 @@ int main(int argc, char **argv)
         editBtnBox.data.textbox->text = editButton.output ?
             "Run Loop" : "End Loop";
 
+        UpdateButton(&ffButton);
         if(!editButton.output)
         {
             macroInput.focused = 0;
-            UpdateButton(&ffButton);
             ffBtnBox.data.textbox->color.a =
                 ffButton.mouseOn ? 0xff : 0x00;
             ffBtnBox.data.textbox->textColor =
@@ -245,8 +412,36 @@ int main(int argc, char **argv)
 
         DrawLevel(curLvl, worldCam, frameCtr);
 
+        UpdateButton(&ltButton);
+        if(
+            (
+                editButton.output ||
+                ((curLvl.player.posX == curLvl.player.goalX) &&
+                (curLvl.player.posY == curLvl.player.goalY))
+            ) && ltButton.output && (curLvl.enemyNum > 0))
+        {
+            ResetMacroBot(&(curLvl.player));
+            curLvl.enemyNum--;
+            curLvl.player = curLvl.enemies[curLvl.enemyNum];
+            macroInput.output = curLvl.player.macro;
+            macroInput.curLen = strlen(macroInput.output);
+            UpdateEnemyTiles(&curLvl);
+            editButton.output = 1;
+        } else {
+            leftTopBtnBox.data.textbox->color.a = 0x00;
+            leftTopBtnBox.data.textbox->textColor = GRAY;
+        }
+
         if(editButton.output)
         {
+            if(curLvl.enemyNum > 0)
+            {
+                leftTopBtnBox.data.textbox->color.a =
+                    ltButton.mouseOn ? 0xFF : 0x00;
+                leftTopBtnBox.data.textbox->textColor =
+                    ltButton.mouseOn ? RED : WHITE;
+            }
+
             if(!prevEdit)
             {
                 playerTurn = 0;
@@ -263,11 +458,38 @@ int main(int argc, char **argv)
             (curLvl.player.posY == curLvl.player.goalY)
         )
         {
+            if(curLvl.enemyNum > 0)
+            {
+                leftTopBtnBox.data.textbox->color.a =
+                    ltButton.mouseOn ? 0xFF : 0x00;
+                leftTopBtnBox.data.textbox->textColor =
+                    ltButton.mouseOn ? RED : WHITE;
+            }
+
             UpdateButton(&rtButton);
             rightTopBtnBox.data.textbox->textColor =
                 ((frameCtr < 10) || rtButton.mouseOn) ? RED : WHITE;
             rightTopBtnBox.data.textbox->color.a = 
                 ((frameCtr < 10) || rtButton.mouseOn) ? 0xff : 0x00;
+
+            if(!(curLvl.enemyNum < curLvl.maxEnemies) && rtButton.mouseOn)
+            {
+                int instrCtr = 0;
+
+                for(int i = 0; i < (curLvl.maxEnemies + 1); i++)
+                    instrCtr += strlen(curLvl.enemies[i].macro);
+
+                sprintf(endText,
+                    "You beat level %d using %d instructions!\n"
+                    "Click the exit button to end the level\n\n"
+                    "For an extra challenge,\ntry to use as few instructions"
+                    " as you can\n", lvlPlaying, instrCtr
+                );
+
+                endBox.data.textbox->text = endText;
+
+                DrawElement(endBox);
+            }
 
             if(rtButton.output)
             {
@@ -275,29 +497,38 @@ int main(int argc, char **argv)
                 {
                     ResetMacroBot(&(curLvl.player));
                     curLvl.enemyNum++;
-                    curLvl.player = curLvl.enemies[curLvl.enemyNum];
                     if(curLvl.enemies[curLvl.enemyNum].macro == NULL)
+                    {
                         curLvl.enemies[curLvl.enemyNum].macro = (char*)
-                            malloc(sizeof(int) * curLvl.maxMacroSize);
+                            malloc(sizeof(char) * (curLvl.maxMacroSize + 1));
+
+                        *(curLvl.enemies[curLvl.enemyNum].macro) = 0;
+                        macroInput.curLen = 0;
+                    } else {
+                        macroInput.curLen = strlen(
+                            curLvl.enemies[curLvl.enemyNum].macro
+                        );
+                    }
                     curLvl.player = curLvl.enemies[curLvl.enemyNum];
                     macroInput.output = curLvl.player.macro;
-                    *(macroInput.output) = 0;
-                    macroInput.curLen = 0;
+                    editButton.output = 1;
+                    UpdateEnemyTiles(&curLvl);
                 }
             }
-
         } else if(curLvl.enemyNum == 0)
         {
-            playerDead = curLvl.player.curAnimation ==
-                MACRO_BOT_ANIMATION_DEAD;
-            RunMacroBot(&(curLvl.player), speed);
-            if(curLvl.player.curAnimation == MACRO_BOT_ANIMATION_NONE)
+            if(
+                curLvl.player.curAnimation ==
+                MACRO_BOT_ANIMATION_GONE
+            )
             {
-                if(playerDead)
-                {
-                    editButton.output = 1;
-                    ResetMacroBot(&(curLvl.player));
-                } else UpdatePlayerBotAnimation(&curLvl);
+                editButton.output = 1;
+                ResetMacroBot(&(curLvl.player));
+            } else {
+                RunMacroBot(&(curLvl.player), speed);
+
+                if(curLvl.player.curAnimation == MACRO_BOT_ANIMATION_NONE)
+                    UpdatePlayerBotAnimation(&curLvl);
             }
         } else {
             if(playerTurn)
@@ -444,6 +675,7 @@ int main(int argc, char **argv)
         DrawElement(allowInputBtnBox);
         DrawElement(editBtnBox);
         DrawElement(ffBtnBox);
+        DrawElement(exitBtnBox);
 
         EndDrawing();
         frameCtr++;
@@ -456,8 +688,12 @@ int main(int argc, char **argv)
     FreeElement(&editBtnBox);
     FreeElement(&allowInputBtnBox);
     FreeElement(&topBar);
-
-    RemoveLevel(&curLvl);
+    FreeElement(&exitBtnBox);
+    FreeElement(&ffBtnBox);
+    StopMusicStream(music);
+    for(int i = 0; i < numLevels; i++)
+        RemoveLevel(levels + i);
     UnloadLevelTextures();
     CloseWindow();
+    CloseAudioDevice();
 }

@@ -10,7 +10,9 @@ void LoadLevelTextures()
 {
     if(levelTexturesLoaded)return;
     levelTexturesLoaded = 1;
-    levelTexture = LoadTexture("./sprites/gameSpriteSheet.png");
+    ChangeDirectory("sprites");
+    levelTexture = LoadTexture("gameSpriteSheet.png");
+    ChangeDirectory("..");
 }
 
 void UnloadLevelTextures()
@@ -97,7 +99,7 @@ Level MakeLevel(char *fileName)
         };
     }
 
-    enemies[0].macro = (char*) malloc(sizeof(char) * 15);
+    enemies[0].macro = (char*) malloc(sizeof(char) * (15 + 1));
 
     return (Level) {
         .width = width,
@@ -146,7 +148,8 @@ void RemoveLevel(Level *lvl)
     lvl->enemies = NULL;
 }
 
-void DrawBot(
+void DrawEnemySpawn
+(
     MacroBot bot,
     int *posX,
     int *posY,
@@ -154,14 +157,10 @@ void DrawBot(
     char isEnemy
 )
 {
-    float ySrc = isEnemy ? 15.0f : 0.0f;
-
-    if(isEnemy)
-    {
         DrawTexturePro(
             levelTexture,
             (Rectangle) {
-                32.0f + (float)(16 * (frameNum / 5)), ySrc, 16.0f, 16.0f
+                32.0f + (float)(16 * (frameNum / 5)), 15.0f, 16.0f, 16.0f
             },
             (Rectangle) {
                 (float) posX[bot.spawnX],
@@ -177,7 +176,7 @@ void DrawBot(
         DrawTexturePro(
             levelTexture,
             (Rectangle) {
-                80.0f + (float)(16 * (frameNum / 5)), ySrc, 16.0f, 16.0f
+                80.0f + (float)(16 * (frameNum / 5)), 15.0f, 16.0f, 16.0f
             },
             (Rectangle) {
                 (float) posX[bot.goalX],
@@ -189,7 +188,17 @@ void DrawBot(
             0.0f,
             RAYWHITE
         );
-    }
+}
+
+void DrawBot(
+    MacroBot bot,
+    int *posX,
+    int *posY,
+    int frameNum,
+    char isEnemy
+)
+{
+    float ySrc = isEnemy ? 15.0f : 0.0f;
 
     float animationX = 0.0f, animationY = 0.0f, animationTurn = 0.0f;
 
@@ -363,6 +372,8 @@ void DrawLevel(Level lvl, Camera2D cam, int frameNum)
         RAYWHITE
     );
 
+    for(int i = 0; i < lvl.enemyNum; i++)
+        DrawEnemySpawn(lvl.enemies[i], posX, posY, frameNum, 1);
     for(int i = 0; i < lvl.enemyNum; i++)
         DrawBot(lvl.enemies[i], posX, posY, frameNum, 1);
 
@@ -600,4 +611,84 @@ void UpdatePlayerBotAnimation(Level *lvl)
             break;
         }
     }
+}
+
+void UpdateEnemyTiles(Level *lvl)
+{
+    for(int i = 0; i < lvl->height; i++)
+    {
+        for(int j = 0; j < lvl->width; j++)
+        {
+            if(lvl->tileGrid[j + i * lvl->width].type == LEVEL_TILE_PATH)
+            {
+                lvl->tileGrid[j + i * lvl->width].type = LEVEL_TILE_CLEAR;
+                lvl->tileGrid[j + i * lvl->width].ySrc -= 32.0f;
+            }
+        }
+    }
+
+    for(int i = 0; i < lvl->enemyNum; i++)ResetMacroBot(lvl->enemies + i);
+
+    char keepLooping;
+    char updateAnimations;
+
+    while(keepLooping)
+    {
+        keepLooping = 0;
+        updateAnimations = 1;
+        for(int i = 0; i < lvl->enemyNum; i++)
+        {
+            keepLooping |= lvl->enemies[i].curAnimation !=
+                MACRO_BOT_ANIMATION_GONE;
+
+            updateAnimations &= (lvl->enemies[i].curAnimation ==
+                MACRO_BOT_ANIMATION_GONE) || (lvl->enemies[i].curAnimation ==
+                MACRO_BOT_ANIMATION_NONE);
+
+            if(
+                lvl->tileGrid[
+                    lvl->enemies[i].posX + 
+                    lvl->enemies[i].posY *
+                    lvl->width
+                ].type == LEVEL_TILE_CLEAR
+            )
+            {
+                lvl->tileGrid[
+                    lvl->enemies[i].posX + 
+                    lvl->enemies[i].posY *
+                    lvl->width
+                ].type = LEVEL_TILE_PATH;
+
+                lvl->tileGrid[
+                    lvl->enemies[i].posX + 
+                    lvl->enemies[i].posY *
+                    lvl->width
+                ].ySrc += 32.0f;
+            }
+
+            RunMacroBot(lvl->enemies + i, 2.0f);
+        }
+
+        if(updateAnimations)UpdateEnemyBotAnimation(lvl);
+    }
+
+    ResetMacroBot(&(lvl->player));
+
+    for(int i = 0; i < lvl->enemyNum; i++)ResetMacroBot(lvl->enemies + i);
+}
+
+void ResetLevel(Level *lvl)
+{
+    for(int i = 0; i < lvl->maxEnemies; i++)
+    {
+        lvl->enemies[i].macroPos = 0;
+        if(lvl->enemies[i].macro != NULL)
+            *(lvl->enemies[i].macro) = 0;
+
+        lvl->enemies[i].posX = lvl->enemies[i].spawnX; 
+        lvl->enemies[i].posY = lvl->enemies[i].spawnY; 
+        lvl->enemies[i].rotation = lvl->enemies[i].spawnRotation;
+    }
+    lvl->player = lvl->enemies[0];
+    lvl->enemyNum = 0;
 }

@@ -153,4 +153,11 @@ void UpdateEnemyBotAnimation(Level *lvl);
 //Updates the animation of the player bot on a level
 void UpdatePlayerBotAnimation(Level *lvl);
 
+//updates which tiles are marked as the enemy on them.
+// NOTE: all enemy loops must end, or this will result in an infinite loop
+void UpdateEnemyTiles(Level *lvl);
+
+//resets a level so that it can be replayed
+void ResetLevel(Level *lvl);
+
 #endif

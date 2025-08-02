@@ -11,6 +11,7 @@ build:
 	mkdir build
 	${CC} ${SRC} -o build/game -I . ${LIB}
 	cp -r levels build
+	cp -r audio build
 	cp -r sprites build
 
 run:
@@ -21,6 +22,7 @@ test:
 	${CC} -g ./src/*.c -o build/game -I . ${LIB}
 	cp -r levels build
 	cp -r sprites build
+	cp -r audio build
 	gdb ./build/game
 
 lvledit:
