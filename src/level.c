@@ -1,5 +1,5 @@
 #include "../include/level.h"
-#include <raylib.h>
+#include "../include/raylib.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -10,9 +10,7 @@ void LoadLevelTextures()
 {
     if(levelTexturesLoaded)return;
     levelTexturesLoaded = 1;
-    ChangeDirectory("sprites");
-    levelTexture = LoadTexture("gameSpriteSheet.png");
-    ChangeDirectory("..");
+    levelTexture = LoadTexture("./sprites/gameSpriteSheet.png");
 }
 
 void UnloadLevelTextures()
@@ -629,7 +627,7 @@ void UpdateEnemyTiles(Level *lvl)
 
     for(int i = 0; i < lvl->enemyNum; i++)ResetMacroBot(lvl->enemies + i);
 
-    char keepLooping;
+    char keepLooping = 0;
     char updateAnimations;
 
     while(keepLooping)

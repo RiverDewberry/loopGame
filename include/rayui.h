@@ -1,6 +1,6 @@
 #ifndef RAYUI_H
 #define RAYUI_H
-#include <raylib.h>
+#include "raylib.h"
 
 //centers the camera
 void CenterCamera(Camera2D *cam);
